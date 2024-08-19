@@ -1,0 +1,244 @@
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: "${CLUSTER_NAME}"
+  namespace: "${NAMESPACE}"
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+        - 10.200.0.0/16
+    services:
+      cidrBlocks:
+        - 10.95.0.0/16
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: KubevirtCluster
+    name: '${CLUSTER_NAME}'
+    namespace: "${NAMESPACE}"
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    kind: KubeadmControlPlane
+    name: '${CLUSTER_NAME}-control-plane'
+    namespace: "${NAMESPACE}"
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: KubevirtCluster
+metadata:
+  name: "${CLUSTER_NAME}"
+  namespace: "${NAMESPACE}"
+spec:
+  infraClusterSecretRef:
+    apiVersion: v1
+    kind: Secret
+    name: external-infra-kubeconfig
+    namespace: capk-system
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: KubevirtMachineTemplate
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+  namespace: "${NAMESPACE}"
+spec:
+  template:
+    spec:
+      virtualMachineTemplate:
+        spec:
+          runStrategy: Always
+          template:
+            spec:
+              domain:
+                cpu:
+                  cores: 2
+                memory:
+                  guest: "4Gi"
+                devices:
+                  networkInterfaceMultiqueue: true
+                  disks:
+                    - disk:
+                        bus: virtio
+                      name: containervolume
+              evictionStrategy: External
+              volumes:
+                - containerDisk:
+                    image: "${NODE_VM_IMAGE_TEMPLATE}"
+                  name: containervolume
+---
+kind: KubeadmControlPlane
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+  namespace: "${NAMESPACE}"
+spec:
+  replicas: ${CONTROL_PLANE_MACHINE_COUNT}
+  machineTemplate:
+    infrastructureRef:
+      kind: KubevirtMachineTemplate
+      apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+      name: "${CLUSTER_NAME}-control-plane"
+      namespace: "${NAMESPACE}"
+  kubeadmConfigSpec:
+    users:
+    - name: username
+      sshAuthorizedKeys:
+      - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDJRuxKlPxe/+liFanO6TwXaEaiaeOhIIV9kDdL75Lx69jJyu+VyzT2Uq+AlvYdk99iX8ONtPgXiBzG6XV/jPuE9VuTHXz3UFmX/3YvzKBWuvub6HPqZMxVOklGii1ltW6yW1fm1Znfk7xslmV9hqMYWkhOP/EHWHmCgRND/WvEcCJiB5dA8nQcLmMFhCEtseEegI7CI6aTSJ7DzLQm4enw+Hf89tUcRZ99U3sDJsIwACZRzQdWRXAp3sL4jSJ3enwz1i2p08MOSecbWOrmJ1Bkdo10wyNS0QV/MxRGzc0qHw7/q7nhqz9xgeHCLaDfJv0+GYoB36U92pylLr1Yifg9K3Zxj+qq+VzBC0GFaS3ZYOaf3Ks5X73zK9Uf7E4sqj8vduf1OwQbJTCq+pmFAzV9uZMaMwSGmvOW031i4Zgy21nzU3yeG7SAVe82OmCqk8C/bBEsS6ywyu9f2zOXgom36SMa0BXF2DP0j0P9oWI4AZ5mGrFogyJHHGyMohfPfok= ubuntu@vm1"
+    - name: root
+      sshAuthorizedKeys:
+      - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDJRuxKlPxe/+liFanO6TwXaEaiaeOhIIV9kDdL75Lx69jJyu+VyzT2Uq+AlvYdk99iX8ONtPgXiBzG6XV/jPuE9VuTHXz3UFmX/3YvzKBWuvub6HPqZMxVOklGii1ltW6yW1fm1Znfk7xslmV9hqMYWkhOP/EHWHmCgRND/WvEcCJiB5dA8nQcLmMFhCEtseEegI7CI6aTSJ7DzLQm4enw+Hf89tUcRZ99U3sDJsIwACZRzQdWRXAp3sL4jSJ3enwz1i2p08MOSecbWOrmJ1Bkdo10wyNS0QV/MxRGzc0qHw7/q7nhqz9xgeHCLaDfJv0+GYoB36U92pylLr1Yifg9K3Zxj+qq+VzBC0GFaS3ZYOaf3Ks5X73zK9Uf7E4sqj8vduf1OwQbJTCq+pmFAzV9uZMaMwSGmvOW031i4Zgy21nzU3yeG7SAVe82OmCqk8C/bBEsS6ywyu9f2zOXgom36SMa0BXF2DP0j0P9oWI4AZ5mGrFogyJHHGyMohfPfok= ubuntu@vm1"
+    files:
+    - content: "username ALL = (ALL) NOPASSWD: ALL"
+      owner: root:root
+      path: /etc/sudoers.d/username
+      permissions: "0440"
+    - content: |
+        http_proxy="http://163.162.114.130:3128"
+        HTTP_PROXY="http://163.162.114.130:3128"
+        https_proxy="http://163.162.114.130:3128"
+        HTTPS_PROXY="http://163.162.114.130:3128"
+        no_proxy="172.16.46.0/24,172.16.44.0/24,172.16.45.0/24,tim.local,tim.poc,rancher.telcocloud,sylva,127.0.0.1,localhostcattle-system.svc,192.168.0.0/16,10.0.0.0/8,163.162.0.0/16,tim.it,cselt.it,cluster.local,local.svc,163.162.196.17,100.64.0.0/10"
+        NO_PROXY="172.16.46.0/24,172.16.44.0/24,172.16.45.0/24,tim.local,tim.poc,rancher.telcocloud,sylva,127.0.0.1,localhostcattle-system.svc,192.168.0.0/16,10.0.0.0/8,163.162.0.0/16,tim.it,cselt.it,cluster.local,local.svc,163.162.196.17,100.64.0.0/10"
+      owner: root:root
+      path: /etc/environment
+      permissions: "0440"
+    clusterConfiguration:
+      networking:
+        dnsDomain: "${CLUSTER_NAME}.${NAMESPACE}.local"
+        podSubnet: 10.200.0.0/16
+        serviceSubnet: 10.95.0.0/16
+    initConfiguration:
+      nodeRegistration:
+        criSocket: "${CRI_PATH}"
+    joinConfiguration:
+      nodeRegistration:
+        criSocket: "${CRI_PATH}"
+    preKubeadmCommands:
+      - echo 'http_proxy="http://163.162.114.130:3128"' >> /etc/environment
+      - echo 'HTTP_PROXY="http://163.162.114.130:3128"' >> /etc/environment
+      - echo 'https_proxy="http://163.162.114.130:3128"' >> /etc/environment
+      - echo 'HTTPS_PROXY="http://163.162.114.130:3128"' >> /etc/environment
+      - echo 'NO_PROXY="172.16.46.0/24,172.16.44.0/24,172.16.45.0/24,tim.local,tim.poc,rancher.telcocloud,sylva,127.0.0.1,localhostcattle-system.svc,192.168.0.0/16,10.0.0.0/8,163.162.0.0/16,tim.it,cselt.it,cluster.local,local.svc,163.162.196.17,100.64.0.0/10"' >> /etc/environment
+      - echo 'no_proxy="172.16.46.0/24,172.16.44.0/24,172.16.45.0/24,tim.local,tim.poc,rancher.telcocloud,sylva,127.0.0.1,localhostcattle-system.svc,192.168.0.0/16,10.0.0.0/8,163.162.0.0/16,tim.it,cselt.it,cluster.local,local.svc,163.162.196.17,100.64.0.0/10"' >> /etc/environment
+      - source /etc/environment
+      - systemctl set-environment HTTP_PROXY=http://163.162.114.130:3128
+      - systemctl set-environment HTTPS_PROXY=http://163.162.114.130:3128
+      - systemctl set-environment NO_PROXY="172.16.46.0/24,172.16.44.0/24,172.16.45.0/24,tim.local,tim.poc,rancher.telcocloud,sylva,127.0.0.1,localhostcattle-system.svc,192.168.0.0/16,10.0.0.0/8,163.162.0.0/16,tim.it,cselt.it,cluster.local,local.svc,163.162.196.17,100.64.0.0/10"
+      - systemctl deamon-reload
+      - systemctl restart containerd.service
+    postKubeadmCommands:
+      #- export KUBECONFIG=/etc/kubernetes/admin.conf
+      - echo 'KUBECONFIG="/etc/kubernetes/admin.conf"' >> /etc/environment
+      - source etc/environment
+      #- systemctl restart kubelet
+
+  version: "${KUBERNETES_VERSION}"
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: KubevirtMachineTemplate
+metadata:
+  name: "${CLUSTER_NAME}-md-0"
+  namespace: "${NAMESPACE}"
+spec:
+  template:
+    spec:
+      virtualMachineBootstrapCheck:
+        checkStrategy: ssh
+      virtualMachineTemplate:
+        spec:
+          runStrategy: Always
+          template:
+            spec:
+              domain:
+                cpu:
+                  cores: 2
+                memory:
+                  guest: "4Gi"
+                devices:
+                  networkInterfaceMultiqueue: true
+                  disks:
+                    - disk:
+                        bus: virtio
+                      name: containervolume
+              evictionStrategy: External
+              volumes:
+                - containerDisk:
+                    image: "${NODE_VM_IMAGE_TEMPLATE}"
+                  name: containervolume
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: "${CLUSTER_NAME}-md-0"
+  namespace: "${NAMESPACE}"
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs: {}
+      preKubeadmCommands:
+        - echo 'http_proxy="http://163.162.114.130:3128"' >> /etc/environment
+        - echo 'HTTP_PROXY="http://163.162.114.130:3128"' >> /etc/environment
+        - echo 'https_proxy="http://163.162.114.130:3128"' >> /etc/environment
+        - echo 'HTTPS_PROXY="http://163.162.114.130:3128"' >> /etc/environment
+        - echo 'NO_PROXY="172.16.46.0/24,172.16.44.0/24,172.16.45.0/24,tim.local,tim.poc,rancher.telcocloud,sylva,127.0.0.1,localhostcattle-system.svc,192.168.0.0/16,10.0.0.0/8,163.162.0.0/16,tim.it,cselt.it,cluster.local,local.svc,163.162.196.17,100.64.0.0/10"' >> /etc/environment
+        - echo 'no_proxy="172.16.46.0/24,172.16.44.0/24,172.16.45.0/24,tim.local,tim.poc,rancher.telcocloud,sylva,127.0.0.1,localhostcattle-system.svc,192.168.0.0/16,10.0.0.0/8,163.162.0.0/16,tim.it,cselt.it,cluster.local,local.svc,163.162.196.17,100.64.0.0/10"' >> /etc/environment
+        - systemctl set-environment HTTP_PROXY=http://163.162.114.130:3128
+        - systemctl set-environment HTTPS_PROXY=http://163.162.114.130:3128
+        - systemctl set-environment NO_PROXY="172.16.46.0/24,172.16.44.0/24,172.16.45.0/24,tim.local,tim.poc,rancher.telcocloud,sylva,127.0.0.1,localhostcattle-system.svc,192.168.0.0/16,10.0.0.0/8,163.162.0.0/16,tim.it,cselt.it,cluster.local,local.svc,163.162.196.17,100.64.0.0/10"
+        - source etc/environment
+        - systemctl deamon-reload
+        - systemctl restart containerd.service
+      postKubeadmCommands:
+        #- export KUBECONFIG=/etc/kubernetes/admin.conf
+        - echo 'KUBECONFIG="/etc/kubernetes/admin.conf"' >> /etc/environment
+        - source etc/environment
+        #- systemctl restart kubelet
+      users:
+      - name: username
+        sshAuthorizedKeys:
+        - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDJRuxKlPxe/+liFanO6TwXaEaiaeOhIIV9kDdL75Lx69jJyu+VyzT2Uq+AlvYdk99iX8ONtPgXiBzG6XV/jPuE9VuTHXz3UFmX/3YvzKBWuvub6HPqZMxVOklGii1ltW6yW1fm1Znfk7xslmV9hqMYWkhOP/EHWHmCgRND/WvEcCJiB5dA8nQcLmMFhCEtseEegI7CI6aTSJ7DzLQm4enw+Hf89tUcRZ99U3sDJsIwACZRzQdWRXAp3sL4jSJ3enwz1i2p08MOSecbWOrmJ1Bkdo10wyNS0QV/MxRGzc0qHw7/q7nhqz9xgeHCLaDfJv0+GYoB36U92pylLr1Yifg9K3Zxj+qq+VzBC0GFaS3ZYOaf3Ks5X73zK9Uf7E4sqj8vduf1OwQbJTCq+pmFAzV9uZMaMwSGmvOW031i4Zgy21nzU3yeG7SAVe82OmCqk8C/bBEsS6ywyu9f2zOXgom36SMa0BXF2DP0j0P9oWI4AZ5mGrFogyJHHGyMohfPfok= ubuntu@vm1"
+      - name: root
+        sshAuthorizedKeys:
+        - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDJRuxKlPxe/+liFanO6TwXaEaiaeOhIIV9kDdL75Lx69jJyu+VyzT2Uq+AlvYdk99iX8ONtPgXiBzG6XV/jPuE9VuTHXz3UFmX/3YvzKBWuvub6HPqZMxVOklGii1ltW6yW1fm1Znfk7xslmV9hqMYWkhOP/EHWHmCgRND/WvEcCJiB5dA8nQcLmMFhCEtseEegI7CI6aTSJ7DzLQm4enw+Hf89tUcRZ99U3sDJsIwACZRzQdWRXAp3sL4jSJ3enwz1i2p08MOSecbWOrmJ1Bkdo10wyNS0QV/MxRGzc0qHw7/q7nhqz9xgeHCLaDfJv0+GYoB36U92pylLr1Yifg9K3Zxj+qq+VzBC0GFaS3ZYOaf3Ks5X73zK9Uf7E4sqj8vduf1OwQbJTCq+pmFAzV9uZMaMwSGmvOW031i4Zgy21nzU3yeG7SAVe82OmCqk8C/bBEsS6ywyu9f2zOXgom36SMa0BXF2DP0j0P9oWI4AZ5mGrFogyJHHGyMohfPfok= ubuntu@vm1"
+      files:
+      - content: "username ALL = (ALL) NOPASSWD: ALL"
+        owner: root:root
+        path: /etc/sudoers.d/username
+        permissions: "0440"
+      - content: |
+          http_proxy="http://163.162.114.130:3128"
+          HTTP_PROXY="http://163.162.114.130:3128"
+          https_proxy="http://163.162.114.130:3128"
+          HTTPS_PROXY="http://163.162.114.130:3128"
+          no_proxy="172.16.46.0/24,172.16.44.0/24,172.16.45.0/24,tim.local,tim.poc,rancher.telcocloud,sylva,127.0.0.1,localhostcattle-system.svc,192.168.0.0/16,10.0.0.0/8,163.162.0.0/16,tim.it,cselt.it,cluster.local,local.svc,163.162.196.17,100.64.0.0/10"
+          NO_PROXY="172.16.46.0/24,172.16.44.0/24,172.16.45.0/24,tim.local,tim.poc,rancher.telcocloud,sylva,127.0.0.1,localhostcattle-system.svc,192.168.0.0/16,10.0.0.0/8,163.162.0.0/16,tim.it,cselt.it,cluster.local,local.svc,163.162.196.17,100.64.0.0/10"
+        owner: root:root
+        path: /etc/environment
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: "${CLUSTER_NAME}-md-0"
+  namespace: "${NAMESPACE}"
+spec:
+  clusterName: "${CLUSTER_NAME}"
+  replicas: ${WORKER_MACHINE_COUNT}
+  selector:
+    matchLabels:
+  template:
+    spec:
+      clusterName: "${CLUSTER_NAME}"
+      version: "${KUBERNETES_VERSION}"
+      bootstrap:
+        configRef:
+          name: "${CLUSTER_NAME}-md-0"
+          namespace: "${NAMESPACE}"
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+      infrastructureRef:
+        name: "${CLUSTER_NAME}-md-0"
+        namespace: "${NAMESPACE}"
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: KubevirtMachineTemplate
+

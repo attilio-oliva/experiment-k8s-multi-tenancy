@@ -1,0 +1,12 @@
+controlPlane:
+  # Distro holds virtual cluster related distro options. A distro cannot be changed after vCluster is deployed.
+  distro:
+    # K8S holds K8s relevant configuration.
+    k8s:
+      # Enabled specifies if the K8s distro should be enabled. Only one distro can be enabled at the same time.
+      enabled: true
+  backingStore:
+    etcd:
+        deploy:
+          # Enabled defines if the embedded etcd should be used.
+          enabled: true
