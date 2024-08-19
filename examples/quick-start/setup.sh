@@ -168,47 +168,6 @@ install_kata_container() {
     success "Kata Containers installed successfully"
 }
 
-create_kv_cluster_example() {
-    if [ -z "$KV_CAPI_MANIFEST" ]; then
-        warning "Manifest not found: using the default CAPI Kubevirt cluster template"
-        
-        clusterctl generate cluster capi-quickstart \
-      --infrastructure="kubevirt" \
-      --flavor lb \
-      --kubernetes-version ${CAPK_GUEST_K8S_VERSION} \
-      --control-plane-machine-count=1 \
-      --worker-machine-count=1 \
-      > capi-quickstart.yaml
-
-      $KV_CAPI_MANIFEST="capi-quickstart.yaml"
-    else
-        info "Manifest found: using the provided CAPI Kubevirt cluster template"
-    fi
-
-    kubectl apply -f $KV_CAPI_MANIFEST
-    success "Cluster created successfully"
-
-    echo "To get the updated status of the cluster, run the following command:"
-    echo "watch --color clusterctl describe cluster capi-quickstart -c"
-}
-
-create_vcluster_example() {
-    export CLUSTER_NAME=test-vcluster
-    export CLUSTER_NAMESPACE=my-vcluster-qemu
-    export KUBERNETES_VERSION=1.29.7
-    #export VCLUSTER_YAML=""
-    # Uncomment if you want to use vcluster values
-    export VCLUSTER_YAML=$(cat vcluster/values.yaml | awk '{printf "%s\\n", $0}')
-
-    kubectl create namespace ${CLUSTER_NAMESPACE}
-
-    clusterctl generate cluster ${CLUSTER_NAME} \
-    --infrastructure vcluster \
-    --kubernetes-version ${KUBERNETES_VERSION} \
-    --target-namespace ${CLUSTER_NAMESPACE} | kubectl apply -f -
-}
-
-
 
 # If no arguments are provided, install both KubeVirt and vCluster
 if [ $# -eq 0 ]; then
