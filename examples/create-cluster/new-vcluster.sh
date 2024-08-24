@@ -14,6 +14,8 @@ KUBERNETES_VERSION=1.29.7
 
 VCLUSTER_CAPI_MANIFEST=""
 VCLUSTER_VALUES_FILE=""
+ALTERNATIVE_HOSTNAMES=""
+USE_LOCAL_IPS_AS_ALTERNATIVE_HOSTNAMES="n"
 
 OUT_MANIFEST_DIR="${here}/manifests/vclusters"
 
@@ -24,7 +26,7 @@ Usage: ${0##*/} [options] [CLUSTER_NAME]
 
 Options:
   -h  Display this help message
-  -f  Path to the CAPI Kubevirt cluster manifest (all other options will be ignored)
+  -f  Path to the CAPI vCluster manifest (all other options will be ignored)
   -n  Namespace where the cluster will be created (default: $CLUSTER_NAMESPACE)
   -v  Path to the vCluster YAML Helm values file
 
@@ -50,29 +52,52 @@ function create_vcluster() {
         info "Using the provided CAPI vCluster manifest"
     else 
         VALUES_NAME="default"
+        VCLUSTER_YAML=""
 
-        export VCLUSTER_YAML=""
-        if [ -n "$VCLUSTER_VALUES_FILE" ]; then
-            export VCLUSTER_YAML=$(cat ${VCLUSTER_VALUES_FILE} | awk '{printf "%s\\n", $0}')
-            # Get the file name
-            VALUES_NAME=${VCLUSTER_VALUES_FILE##*/}
-            # Remove the file extension
-            VALUES_NAME=${VALUES_NAME%.*}
+        if [ -n "$VCLUSTER_VALUES_FILE" ] && [ -f "$VCLUSTER_VALUES_FILE" ]; then
+            local alternative_hostnames="${ALTERNATIVE_HOSTNAMES:-}"
+
+            if [ "$USE_LOCAL_IPS_AS_ALTERNATIVE_HOSTNAMES" == "y" ]; then
+                # Get the internal IPs of the nodes and separate them with commas followed by a space
+                local_ips=$(kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}' | sed 's/ /, /g')
+                
+                if [ -n "$alternative_hostnames" ]; then
+                    alternative_hostnames="${alternative_hostnames}, ${local_ips}"
+                else
+                    alternative_hostnames="${local_ips}"
+                fi
+            fi
+            
+            if [ -n "$alternative_hostnames" ]; then
+                VCLUSTER_YAML=$(ALTERNATIVE_HOSTNAMES="$alternative_hostnames" envsubst "\${ALTERNATIVE_HOSTNAMES}" < "$VCLUSTER_VALUES_FILE")
+            else
+                VCLUSTER_YAML=$(cat "$VCLUSTER_VALUES_FILE")
+            fi
+
+            # Ensure VCLUSTER_YAML is properly formatted
+            VCLUSTER_YAML=$(awk '{printf "%s\\n", $0}' <<< "$VCLUSTER_YAML")
         fi
-
-        MANIFERS_NAME="${CLUSTER_NAMESPACE}-${CLUSTER_NAME}-${VALUES_NAME}.yaml"
-        VCLUSTER_CAPI_MANIFEST="${OUT_MANIFEST_DIR}/${MANIFERS_NAME}"
+ 
+        export VCLUSTER_YAML
         
-        mkdir -p $OUT_MANIFEST_DIR
+        # Get the file name
+        VALUES_NAME=${VCLUSTER_VALUES_FILE##*/}
+        # Remove the file extension
+        VALUES_NAME=${VALUES_NAME%.*}
+
+        MANIFEST_NAME="${CLUSTER_NAMESPACE}-${CLUSTER_NAME}-${VALUES_NAME}.yaml"
+        VCLUSTER_CAPI_MANIFEST="${OUT_MANIFEST_DIR}/${MANIFEST_NAME}"
+        
+        mkdir -p "$OUT_MANIFEST_DIR"
 
         # Create the namespace if it doesn't exist
-        kubectl create namespace ${CLUSTER_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+        kubectl create namespace "${CLUSTER_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
-        clusterctl generate cluster ${CLUSTER_NAME} \
+        clusterctl generate cluster "${CLUSTER_NAME}" \
         --infrastructure vcluster \
         --kubernetes-version ${KUBERNETES_VERSION} \
-        --target-namespace ${CLUSTER_NAMESPACE} \
-        >  ${VCLUSTER_CAPI_MANIFEST}
+        --target-namespace "${CLUSTER_NAMESPACE}" \
+        >  "${VCLUSTER_CAPI_MANIFEST}"
 
         if [ ! -f "$VCLUSTER_CAPI_MANIFEST" ]; then
             error "Generated manifest not found in path $VCLUSTER_CAPI_MANIFEST"
@@ -88,7 +113,7 @@ function create_vcluster() {
         if [[ ! $PROVIDER_NO_PROXY == *".$CLUSTER_NAMESPACE"* ]]; then
             
             PROVIDER_NO_PROXY="$PROVIDER_NO_PROXY,.$CLUSTER_NAMESPACE"
-            kubectl set env deploy --all -n cluster-api-provider-vcluster-system NO_PROXY=$PROVIDER_NO_PROXY
+            kubectl set env deploy --all -n cluster-api-provider-vcluster-system NO_PROXY="$PROVIDER_NO_PROXY"
             
             info "Added $CLUSTER_NAMESPACE to the NO_PROXY list of the vCluster provider"
             sleep 3
@@ -96,7 +121,7 @@ function create_vcluster() {
         
     fi
 
-    kubectl apply -f $VCLUSTER_CAPI_MANIFEST
+    kubectl apply -f "$VCLUSTER_CAPI_MANIFEST"
     success "Cluster created successfully"
 
     info "To get the updated status of the cluster, run the following command:
@@ -109,7 +134,7 @@ if ! is_clusterctl_installed; then
 fi
 
 
-while getopts "n:v:" opt; do
+while getopts "n:v:f:a:lh" opt; do
     case "$opt" in
     h)  show_help
         exit 0
@@ -119,6 +144,14 @@ while getopts "n:v:" opt; do
     n)  CLUSTER_NAMESPACE=$OPTARG
         ;;
     v)  VCLUSTER_VALUES_FILE=$OPTARG
+        ;;
+    a)  ALTERNATIVE_HOSTNAMES=$OPTARG
+        ;;
+    l)  USE_LOCAL_IPS_AS_ALTERNATIVE_HOSTNAMES="y"
+        ;;
+    \?) error "Invalid option: $opt"
+        show_help
+        exit 1
         ;;
     esac
 done
