@@ -13,21 +13,16 @@ CLUSTERCTL_VERSION="v1.7.4"
 INSTALL_VCLUSTER="n"
 VCLUSTER_VERSION="v0.20.0"
 VCLUSTER_PROVIDER_VERSION="v0.2.0"
-VCLUSTER_CAPI_TEMPLATE="manifests/vcluster-capi-template.yaml"
 
 # KubeVirt
 INSTALL_KUBEVIRT="n"
 KV_VER="1.3.0"
 USE_NESTED_VIRTUALIZATION="n"
-CAPK_GUEST_K8S_VERSION="v1.26.0"
-CRI_PATH="/var/run/containerd/containerd.sock"
-NODE_VM_IMAGE_TEMPLATE="quay.io/capk/ubuntu-2004-container-disk:${CAPK_GUEST_K8S_VERSION}"
-KV_CAPI_MANIFEST="manifests/kv-capi-template.yaml"
 
 
 wait_for_namespace_creation() {
     local namespace="$1"
-    while [ "$(kubectl get ns $namespace 2>/dev/null)" == "" ]; do
+    while [ "$(kubectl get ns "$namespace" 2>/dev/null)" == "" ]; do
         sleep 2
     done
 }
@@ -132,17 +127,17 @@ install_vcluster_provider() {
     clusterctl init --infrastructure vcluster:$VCLUSTER_PROVIDER_VERSION
 
     if [ -n "$HTTP_PROXY" ]; then
-        kubectl set env deploy --all -n cluster-api-provider-vcluster-system HTTP_PROXY=$HTTP_PROXY
+        kubectl set env deploy --all -n cluster-api-provider-vcluster-system HTTP_PROXY="$HTTP_PROXY"
         info "Applied HTTP_PROXY environment variable to all vcluster provider components"
     fi
 
     if [ -n "$HTTPS_PROXY" ]; then
-        kubectl set env deploy --all -n cluster-api-provider-vcluster-system HTTPS_PROXY=$HTTPS_PROXY
+        kubectl set env deploy --all -n cluster-api-provider-vcluster-system HTTPS_PROXY="$HTTPS_PROXY"
         info "Applied HTTPS_PROXY environment variable to all vcluster provider components"
     fi
 
     if [ -n "$NO_PROXY" ]; then
-        kubectl set env deploy --all -n cluster-api-provider-vcluster-system NO_PROXY=$NO_PROXY
+        kubectl set env deploy --all -n cluster-api-provider-vcluster-system NO_PROXY="$NO_PROXY"
         info "Applied NO_PROXY environment variable to all vcluster provider components"
     fi
 
