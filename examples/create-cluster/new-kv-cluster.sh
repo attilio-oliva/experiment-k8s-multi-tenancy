@@ -10,11 +10,11 @@ source "$here/../common.sh"
 CLUSTER_NAMESPACE="capi-quickstart"
 CLUSTER_NAME="capi-quickstart"
 
-CAPK_GUEST_K8S_VERSION="v1.26.0"
-CRI_PATH="/var/run/containerd/containerd.sock"
-NODE_VM_IMAGE_TEMPLATE="quay.io/capk/ubuntu-2004-container-disk:${CAPK_GUEST_K8S_VERSION}"
-CONTROL_PLANE_MACHINE_COUNT=1
-WORKER_MACHINE_COUNT=1
+export CAPK_GUEST_K8S_VERSION="v1.26.0"
+export CRI_PATH="/var/run/containerd/containerd.sock"
+export NODE_VM_IMAGE_TEMPLATE="quay.io/capk/ubuntu-2004-container-disk:${CAPK_GUEST_K8S_VERSION}"
+export CONTROL_PLANE_MACHINE_COUNT=1
+export WORKER_MACHINE_COUNT=1
 
 KV_CAPI_TEMPLATE="${here}/manifests/kv-capi-template.yaml"
 KV_CAPI_MANIFEST=""
@@ -110,7 +110,7 @@ if [ $# -eq 0 ]; then
 fi
 
 
-while getopts "hvo:f:t:n:c:w" opt; do
+while getopts "f:t:n:c:w:h" opt; do
     case "$opt" in
     h)  show_help
         exit 0
@@ -124,6 +124,10 @@ while getopts "hvo:f:t:n:c:w" opt; do
     c)  CONTROL_PLANE_MACHINE_COUNT=$OPTARG  
         ;;
     w)  WORKER_MACHINE_COUNT=$OPTARG
+        ;;
+    *)
+        show_help
+        exit 1
         ;;
     esac
 done
