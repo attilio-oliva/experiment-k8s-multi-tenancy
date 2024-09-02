@@ -10,9 +10,9 @@ source "$here/../common.sh"
 CLUSTER_NAMESPACE="capi-quickstart"
 CLUSTER_NAME="capi-quickstart"
 
-export CAPK_GUEST_K8S_VERSION="v1.26.0"
+export CAPK_GUEST_K8S_VERSION="v1.29.5"
 export CRI_PATH="/var/run/containerd/containerd.sock"
-export NODE_VM_IMAGE_TEMPLATE="quay.io/capk/ubuntu-2004-container-disk:${CAPK_GUEST_K8S_VERSION}"
+export NODE_VM_IMAGE_TEMPLATE="quay.io/capk/ubuntu-2204-container-disk:${CAPK_GUEST_K8S_VERSION}"
 export CONTROL_PLANE_MACHINE_COUNT=1
 export WORKER_MACHINE_COUNT=1
 
