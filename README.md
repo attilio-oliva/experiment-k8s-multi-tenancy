@@ -18,6 +18,56 @@ This is a collection of bash scripts that I used to test some hard multi-tenancy
   - [pod-boot-time.sh](examples/metrics/pod-boot-time.sh): Get the time used for a pod to be ready (can be used to get the boot time of a tenant cluster for vCluster).
   - [kvcluster-boot-time.sh](examples/metrics/kvcluster-boot-time.sh): Get the tenant Kubevirt cluster boot time.
 
+## Examples
+Install the necessary tools:
+```bash
+./examples/quick-start/setup.sh
+```
+### Create a new cluster
+Create a new vCluster named `vcluster` for a tenant in namespace `tenant1` and expose it with a Nodeport service using the [etcd-san](examples/create-cluster/values/etcd-san.yaml) configuration and use the node IPs as extra SANs (`-l` flag):
+```bash
+./examples/create-cluster/new-vcluster.sh -v examples/create-cluster/values/etcd-san.yaml -n tenant1 -l vcluster
+```
+Otherwise, you can explicit a specific IP or domain `<extra-domain>` as SANs:
+```bash
+./examples/create-cluster/new-vcluster.sh -v examples/create-cluster/values/etcd-san.yaml -n tenant1 -a <extra-domain> vcluster 
+```
+
+Create a new Kubevirt cluster named `kvcluster` for a tenant:
+```bash
+./examples/create-cluster/new-kv-cluster.sh -n tenant1 kvcluster
+```
+
+### Get the kubeconfig
+Get all the kubeconfigs for existing clusters
+```bash
+./examples/create-cluster/get-kubeconfig.sh
+```
+
+Otherwise you can just get the kubeconfig for namespaces that contains a specific string(i.e. `-n tenant` will get kubeconfig for tenant1, tenant-example, etc.):
+```bash
+./examples/create-cluster/get-kubeconfig.sh -n tenant
+```
+
+
+If you want a kubeconfig with the correct endpoint for an exposed vCluster, you can use the `get-kubeconfig.sh` script with the `-v` flag:
+```bash
+./examples/create-cluster/get-kubeconfig.sh -v
+```	
+
+### Stress test
+Run a stress test on the tenant cluster using its kubeconfig that lasts 15 minutes (`-t`) simulating up to 5000 users (`-u`) with a rate of 100 new users per second (`-r`):
+```bash
+./examples/web-service-stress/stress-test.sh -t 15m -u 5000 -r 100 -k examples/create-cluster/kubeconfigs/tenant-vcluster.yaml
+```
+Users will create a new request in a random uniform interval between 1 and 10 seconds (5s on average), so the average number of requests per second will be 1000 with a peak of 5000 users.
+Using more a rate higher than 100 users is not recommended.
+
+
+
+
+
+
 ## Multi-Tenancy solutions
 This section describes the solutions and why I picked them for my tests.
 ### Management plane 
