@@ -1,0 +1,40 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: add-runtimeclassname-to-tenant-namespaces
+spec:
+  rules:
+    - name: add-runtimeclassname-clh
+      match:
+        resources:
+          kinds:
+            - Pod
+          namespaces:
+            - "*clh*"
+      mutate:
+        patchStrategicMerge:
+          spec:
+            runtimeClassName: kata-clh
+    - name: add-runtimeclassname-qemu
+      match:
+        resources:
+          kinds:
+            - Pod
+          namespaces:
+            - "*qemu*"
+      mutate:
+        patchStrategicMerge:
+          spec:
+            runtimeClassName: kata-qemu
+    - name: add-runtimeclassname-firecracker
+      match:
+        resources:
+          kinds:
+            - Pod
+          namespaces:
+            - "*firecracker*"
+      mutate:
+        patchStrategicMerge:
+          spec:
+            runtimeClassName: kata-fc
+    

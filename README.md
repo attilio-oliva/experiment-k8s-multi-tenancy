@@ -63,6 +63,12 @@ Run a stress test on the tenant cluster using its kubeconfig that lasts 15 minut
 Users will create a new request in a random uniform interval between 1 and 10 seconds (5s on average), so the average number of requests per second will be 1000 with a peak of 5000 users.
 Using more a rate higher than 100 users is not recommended.
 
+## Examples
+Kata Containers is one of the studied solutions. In order to be used for a pod, it is required to set in its specifications the appropriate `runtimeClassName`. However, there is no way to set this field automatically. It is up to the host cluster owner to implement a solution to set this label in the pod spec according to a desired policy.
+
+One way to do this is to use a [MutatingWebhook](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/) that intercepts the pod creation request and adds the `runtimeClassName` label to the pod spec.
+
+A simpler way is to use Kyverno: a policy engine for Kubernetes with declarative API. This is the solution used in this experimentation, where the namespaces that contains certains keyword is mapped to a specific runtimeClassName to test out various VMM (i.e. `kata-qemu`).
 
 
 
